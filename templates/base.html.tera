@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+{% block head %}
+    <meta charset="utf-8" />
+{#<link rel="shortcut icon" href="/public/image/favicon.ico" />#}
+{#<link rel="icon" type="image/x-icon" href="/public/image/favicon.ico" />#}
+    <link rel="icon" type="image/png" href="/public/image/favicon-16x16.png" />
+    <link rel="icon" type="image/png" href="/public/image/favicon-32x32.png" />
+    <link rel="stylesheet" href="/public/css/style.css" />
+<title>{% block title %}Rocket Lab{% endblock title %}</title>
+{% endblock head %}
+  </head>
+  <body>
+    {% include "nav" %}
+
+    {% block content %}{% endblock content %}
+
+      <footer>
+        <a href="/">Home</a>
+      </footer>
+  </body>
+</html>

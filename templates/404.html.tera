@@ -1,0 +1,13 @@
+{% extends "base"%}
+{% block head %}
+{{super()}}
+<script>
+setTimeout(function(){
+    window.location.replace("/");
+        }, 5000);
+</script>
+{% endblock head %}
+{% block content %}
+<h3>Sorry, can not find the Page You are asking for.</h3>
+{% endblock content %}
+

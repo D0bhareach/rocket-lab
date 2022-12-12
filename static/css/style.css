@@ -1,0 +1,29 @@
+body{
+    padding: 0;
+    margin: 0;
+    font-size: 16px;
+}
+ul.nav{
+    display: block;
+    list-style-type: none;
+    width: 100%;
+    border: solid red 1px;
+    margin: inherit;
+    padding: 1rem 0;
+    background-color: lightgrey;
+}
+.nav a {
+    text-decoration: none;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: black;
+}
+.nav a:hover{
+    color: blue;
+}
+.nav li {
+    position: relative;
+    float: left;
+    top: -0.5rem;
+    margin-left: 1.2rem;
+}

@@ -1,0 +1,9 @@
+<ul class="nav">
+<li><a href="/">Hello</a></li>
+<li><a href="/">About</a></li>
+{% if not logged %}
+<li><a href="/session/login">Login</a></li>
+{%else%}
+<li><a href="/session/logout">Logout</a></li>
+{%endif%}
+</ul>

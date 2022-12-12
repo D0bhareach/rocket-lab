@@ -1,0 +1,22 @@
+{% extends "base" %}
+<title>
+{%block title%}
+{{super()}}
+{%if title%}{{title}}{% endif %}
+{%endblock title%}
+</title>
+{% block content %}
+    <h1>Hi {{ name }}!</h1>
+{% if user_id %}<h3> User id: {{user_id}}.</h3>{% endif %}
+{% if items %}
+    <h3>Here are your items:</h3>
+    <ul>
+        {% for s in items %}
+            <li>{{ s }}</li>
+        {% endfor %}
+    </ul>
+{% endif %}
+
+    <!--p>Try going to <a href="/tera/hello/Your%20Name">/tera/hello/Your
+    Name</a></p-->
+{% endblock content %}

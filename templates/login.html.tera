@@ -1,0 +1,16 @@
+{% extends "base"%}
+{% block content %}
+<p>Please login to continue.</p>
+
+      {%if message %}
+         <p>{% if kind %}{{kind}}: {% endif%}{{ message }}</p>
+      {% endif %}
+
+      <form action="/session/login" method="post" accept-charset="utf-8">
+         <label for="username">username</label>
+         <input type="text" name="username" id="username" value="" />
+         <label for="password">password</label>
+         <input type="password" name="password" id="password" value="" />
+         <p><input type="submit" value="Login"></p>
+      </form>
+{% endblock content %}
