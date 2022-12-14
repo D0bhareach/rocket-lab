@@ -63,14 +63,15 @@ fn rocket() -> _ {
     let config = Config::figment();
 
     let figment = Figment::from(config)
-        .merge((
+        .join((
             "databases.redis_sessions",
             rocket_db_pools::Config {
                 url: redis_url,
-                min_connections: Some(1),
-                max_connections: 2usize,
-                connect_timeout: 3u64,
-                idle_timeout: Some(20),
+                // not sure if it taken from Rocket.toml
+                min_connections: None,
+                max_connections: 0,
+                connect_timeout: 0,
+                idle_timeout: None,
             },
         ))
         .merge(("secret_key", envs_map.get("secret_key").unwrap()));
