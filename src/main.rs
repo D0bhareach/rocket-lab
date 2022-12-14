@@ -13,6 +13,8 @@ use rocket_db_pools::figment::Figment;
 use rocket_db_pools::Database;
 use rocket_dyn_templates::Template;
 use std::collections::HashMap;
+use tracing_appender::rolling;
+use tracing_subscriber::fmt::writer::MakeWriterExt;
 use urlencoding::encode;
 
 // pages: one, two, three, dashboard.
@@ -52,12 +54,26 @@ fn get_env() -> HashMap<String, String> {
 
 #[launch]
 fn rocket() -> _ {
+    // init tracing
+    let info_file = rolling::minutely("./logs", "info");
+    let warn_file = rolling::daily("./logs", "warnings").with_max_level(tracing::Level::WARN);
+    let all_files = info_file.and(warn_file);
+
+    tracing_subscriber::fmt()
+        .with_writer(all_files)
+        .with_ansi(false)
+        .with_max_level(tracing::Level::INFO)
+        .init();
+
+    tracing::info!("Before reading env file");
+
     let envs_map = get_env();
     let redis_url = get_connection_info(
         envs_map.get("redis_password").unwrap(),
         envs_map.get("redis_host").unwrap(),
         envs_map.get("redis_port").unwrap(),
     );
+    tracing::info!("After reading .env file. Port: {}", envs_map["redis_port"]);
 
     // read configs form Rocket.toml
     let config = Config::figment();

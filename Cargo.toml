@@ -10,6 +10,9 @@ rocket = {version="0.5.0-rc.2", features = ["secrets"]}
 redis = "0.22.1"
 urlencoding = "2.1.2"
 dotenvy = "0.15.6"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+tracing-appender = "0.2"
 
 [dependencies.rocket_dyn_templates]
 version="0.1.0-rc.2"
