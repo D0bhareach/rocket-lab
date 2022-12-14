@@ -6,7 +6,8 @@ use rocket::request::{self, FromRequest, Outcome};
 use rocket::{Config, Request};
 use std::collections::HashMap;
 
-use rocket_dyn_templates::{context, Template};
+use rocket_dyn_templates::tera::Context;
+use rocket_dyn_templates::Template;
 mod error_handler;
 mod routes;
 pub mod user;
@@ -33,18 +34,22 @@ impl<'r> FromRequest<'r> for Sessions {
 }
 
 #[get("/")]
-async fn index(/*_user: User *//*, mut redis: Connection<Sessions>*/
-) -> Template {
-    // let _: () = redis.set("test", 4i32).await.unwrap();
-    Template::render(
-        "index",
-        context! {
-        title: " - Index Page",
-        name: "Viacheslav",
-        items: vec!["towel", "slippers", "toothbrush"],
-        logged: false,
-        },
-    )
+async fn index(user: Option<User>) -> Template {
+    let mut context = Context::new();
+    context.insert("title", " - Index Page");
+    match user {
+        Some(u) => {
+            context.insert("name", &u.name);
+            context.insert("items", &vec!["Rocket", "docs", "repository"]);
+            context.insert("logged", &true);
+        }
+        None => {
+            context.insert("name", "Guest");
+            context.insert("logged", &false);
+        }
+    }
+
+    Template::render("index", context.into_json())
 }
 // pages: one, two, three, dashboard.
 // When logged must create session id.
@@ -68,6 +73,7 @@ fn get_connection_info(redis_password: &str, redis_host: &str, redis_port: &str)
     )
 }
 
+// get corresponding  key / values from .env file
 fn get_env() -> HashMap<String, String> {
     let mut map = HashMap::with_capacity(2);
     for item in dotenvy::dotenv_iter().unwrap() {
@@ -83,10 +89,7 @@ fn rocket() -> _ {
     let redis_url =
         get_connection_info(envs_map.get("redis_password").unwrap(), "127.0.0.1", "6379");
 
-    // let config = Config {
-    //     port: 8001,
-    //     ..Config::debug_default()
-    // };
+    // read configs form Rocket.toml
     let config = Config::figment();
 
     let figment = Figment::from(config)
@@ -100,7 +103,6 @@ fn rocket() -> _ {
                 idle_timeout: Some(20),
             },
         ))
-        .merge(("log_level", "normal"))
         .merge(("secret_key", envs_map.get("secret_key").unwrap()));
 
     let rocket = rocket::custom(figment);
@@ -110,5 +112,5 @@ fn rocket() -> _ {
         .register("/", error_handler::handlers())
         .mount("/session", routes::session::routes())
         .mount("/", routes![index])
-        .mount("/public", FileServer::from(relative!("static")).rank(30))
+        .mount("/public", FileServer::from(relative!("static")).rank(3))
 }
