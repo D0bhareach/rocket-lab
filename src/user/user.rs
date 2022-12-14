@@ -1,4 +1,6 @@
 use crate::Sessions;
+use rocket::http::Status;
+use rocket::outcome::try_outcome;
 use rocket::request::{FromRequest, Outcome, Request};
 use rocket_db_pools::deadpool_redis::redis::{
     AsyncCommands, ErrorKind, FromRedisValue, RedisResult, Value,
@@ -44,18 +46,23 @@ impl From<&Vec<Value>> for User {
     }
 }
 
+// TODO: Handle errors.
 impl FromRedisValue for User {
     fn from_redis_value(v: &Value) -> RedisResult<Self> {
         match v {
             Value::Bulk(val) => {
                 if val.len() < 6 {
-                    Err((ErrorKind::TypeError, "").into())
+                    Err((
+                        ErrorKind::TypeError,
+                        "Malformed redis value. Not enough items.",
+                    )
+                        .into())
                 } else {
                     let user = User::from(val);
                     return Ok(user);
                 }
             }
-            _ => return Err((ErrorKind::TypeError, "").into()),
+            _ => return Err((ErrorKind::TypeError, "Redis value is not Bulk.").into()),
         }
     }
 }
@@ -64,14 +71,26 @@ impl FromRedisValue for User {
 impl<'r> FromRequest<'r> for User {
     type Error = ();
 
+    // this method is expected to return Outcome. Since error is not propagated empty tuple is
+    // used.
     async fn from_request(request: &'r Request<'_>) -> Outcome<User, ()> {
-        let pool = request
-            .guard::<&'r Sessions>()
-            .await
-            .expect("Error get Connection.");
-        let mut redis = pool.get().await.unwrap();
-        let Some(cookie) = request.cookies().get_private("session_id") else {
-            return Outcome::Forward(());
+        // `Outcome<&Sessions, (rocket::http::Status, ()), ()>`
+        // Use match because will log failed attempts to get guard.
+        let pool = match request.guard::<&'r Sessions>().await {
+            Outcome::Success(p) => p,
+            Outcome::Failure(t) => return Outcome::Failure((t.0, ())),
+            Outcome::Forward(()) => return Outcome::Forward(()),
+        };
+
+        let mut redis = match pool.get().await {
+            Ok(r) => r,
+            Err(e) => {
+                return Outcome::Failure((Status::InternalServerError, ()));
+            }
+        };
+        let cookie = match request.cookies().get_private("session_id") {
+            Some(c) => c,
+            None => return Outcome::Forward(()),
         };
         let s_id = cookie.value();
         let res: rocket_db_pools::deadpool_redis::redis::RedisResult<User> =
