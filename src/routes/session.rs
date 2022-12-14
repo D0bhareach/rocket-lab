@@ -1,11 +1,9 @@
-// use crate::user::User;
 use crate::Sessions;
 use crate::User;
 use rocket::form::Form;
 use rocket::http::{Cookie, CookieJar, Status};
 use rocket::request::FlashMessage;
 use rocket::response::{Flash, Redirect};
-use rocket::Config;
 use rocket_db_pools::deadpool_redis::redis::AsyncCommands;
 use rocket_dyn_templates::{context, Template};
 use uuid::Uuid;

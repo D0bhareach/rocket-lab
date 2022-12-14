@@ -16,7 +16,4 @@
         {% endfor %}
     </ul>
 {% endif %}
-
-    <!--p>Try going to <a href="/tera/hello/Your%20Name">/tera/hello/Your
-    Name</a></p-->
 {% endblock content %}
