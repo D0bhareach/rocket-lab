@@ -4,12 +4,13 @@ use rocket::form::Form;
 use rocket::http::{Cookie, CookieJar, Status};
 use rocket::request::FlashMessage;
 use rocket::response::{Flash, Redirect};
-use rocket_db_pools::deadpool_redis::redis::AsyncCommands;
+use rocket_db_pools::deadpool_redis::redis::{AsyncCommands, RedisResult};
 use rocket_dyn_templates::{context, Template};
+use tracing_attributes::instrument;
 use uuid::Uuid;
 
 // TODO: Validation?
-#[derive(FromForm)]
+#[derive(FromForm, Debug)]
 struct Login<'r> {
     username: &'r str,
     password: &'r str,
@@ -52,6 +53,7 @@ fn login_page(flash: Option<FlashMessage<'_>>) -> Template {
 }
 
 // this request  as many other can end in error state.
+#[instrument]
 #[post("/login", data = "<login>")]
 async fn post_login(
     jar: &CookieJar<'_>,
@@ -62,11 +64,14 @@ async fn post_login(
         let id = Uuid::new_v4().to_string();
         let mut redis = match pool.get().await {
             Ok(r) => r,
-            Err(e) => return Err(Status::InternalServerError),
+            Err(e) => {
+                tracing::error!("Error while get redis connection from the pool. {}", e);
+                return Err(Status::InternalServerError);
+            }
         };
 
         // TODO: From / to vector of strings
-        let _: () = redis
+        let Ok(_unused) = redis
             .hset_multiple(
                 &id,
                 &[
@@ -75,8 +80,11 @@ async fn post_login(
                     ("role", "user".to_string()),
                 ],
             )
-            .await
-            .unwrap();
+            .await as RedisResult<()> else
+             {
+                tracing::error!("Error while setting muliply values for User in Sessions.");
+                return Err(Status::InternalServerError);
+            };
 
         jar.add_private(Cookie::new("session_id", id));
         Ok(Flash::success(Redirect::to(rocket::uri!("/")), "OK"))
@@ -88,6 +96,7 @@ async fn post_login(
     }
 }
 
+#[instrument]
 #[get("/logout")]
 async fn logout(jar: &CookieJar<'_>, pool: &Sessions) -> Result<Flash<Redirect>, Status> {
     let cookie = match jar.get_private("session_id") {
@@ -97,9 +106,15 @@ async fn logout(jar: &CookieJar<'_>, pool: &Sessions) -> Result<Flash<Redirect>,
     jar.remove_private(Cookie::named("session_id"));
     let mut redis = match pool.get().await {
         Ok(r) => r,
-        Err(e) => return Err(Status::InternalServerError),
+        Err(e) => {
+            tracing::error!("Unable to get redis connection from pool. {}", e);
+            return Err(Status::InternalServerError);
+        }
     };
-    let _: () = redis.expire(cookie.value(), 1).await.unwrap();
+    let Ok(_unused) = redis.expire(cookie.value(), 1).await as RedisResult<()> else{
+                tracing::error!("Error while expiring session for User.");
+                return Err(Status::InternalServerError);
+    };
     Ok(Flash::success(
         Redirect::to(rocket::uri!("/")),
         "Successfully logged out.",

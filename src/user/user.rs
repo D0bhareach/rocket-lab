@@ -1,6 +1,5 @@
 use crate::Sessions;
 use rocket::http::Status;
-use rocket::outcome::try_outcome;
 use rocket::request::{FromRequest, Outcome, Request};
 use rocket_db_pools::deadpool_redis::redis::{
     AsyncCommands, ErrorKind, FromRedisValue, RedisResult, Value,
@@ -78,6 +77,7 @@ impl<'r> FromRequest<'r> for User {
         // Use match because will log failed attempts to get guard.
         let pool = match request.guard::<&'r Sessions>().await {
             Outcome::Success(p) => p,
+            // Outcome of guard return (Status, ())
             Outcome::Failure(t) => return Outcome::Failure((t.0, ())),
             Outcome::Forward(()) => return Outcome::Forward(()),
         };

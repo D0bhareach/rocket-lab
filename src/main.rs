@@ -13,9 +13,12 @@ use rocket_db_pools::figment::Figment;
 use rocket_db_pools::Database;
 use rocket_dyn_templates::Template;
 use std::collections::HashMap;
-use tracing_appender::rolling;
-use tracing_subscriber::fmt::writer::MakeWriterExt;
 use urlencoding::encode;
+
+use tracing_appender::{non_blocking, rolling};
+use tracing_subscriber::fmt::writer::MakeWriterExt;
+use tracing_subscriber::subscribe::CollectExt;
+use tracing_subscriber::{fmt, Registry};
 
 // pages: one, two, three, dashboard.
 // When logged must create session id.
@@ -43,7 +46,9 @@ fn get_connection_info(redis_password: &str, redis_host: &str, redis_port: &str)
 }
 
 // get corresponding  key / values from .env file
+#[tracing::instrument]
 fn get_env() -> HashMap<String, String> {
+    tracing::info!("get_env method");
     let mut map = HashMap::with_capacity(2);
     for item in dotenvy::dotenv_iter().unwrap() {
         let (key, val) = item.unwrap();
@@ -54,19 +59,66 @@ fn get_env() -> HashMap<String, String> {
 
 #[launch]
 fn rocket() -> _ {
-    // init tracing
-    let info_file = rolling::minutely("./logs", "info");
-    let warn_file = rolling::daily("./logs", "warnings").with_max_level(tracing::Level::WARN);
-    let all_files = info_file.and(warn_file);
+    // ******** SETTING TRACING ***********
+    // TODO: path to file better be passed from config.
+    // Instead of rolling will need to use rolling-file-rs, or my own implementation
+    let info_file = rolling::daily("./logs", "info");
+    let (info_out, _handle) = non_blocking(info_file);
 
-    tracing_subscriber::fmt()
-        .with_writer(all_files)
-        .with_ansi(false)
-        .with_max_level(tracing::Level::INFO)
-        .init();
+    let debug_file = rolling::daily("./logs", "info");
+    let (debug_out, _handle) = non_blocking(debug_file);
 
-    tracing::info!("Before reading env file");
+    let warn_file = rolling::daily("./logs", "warning");
+    let (warn_out, _handle) = non_blocking(warn_file);
 
+    let error_file = rolling::daily("./logs", "error");
+    let (error_out, _handle) = non_blocking(error_file);
+
+    let info_subscriber = fmt::Subscriber::default().with_writer(
+        info_out
+            .with_min_level(tracing::Level::INFO)
+            .with_max_level(tracing::Level::INFO),
+    );
+
+    let debug_subscriber = fmt::Subscriber::default().pretty().with_writer(
+        debug_out
+            .with_min_level(tracing::Level::DEBUG)
+            .with_max_level(tracing::Level::DEBUG),
+    );
+    let warning_subscriber = fmt::Subscriber::default()
+        .pretty()
+        .with_file(true)
+        .with_line_number(true)
+        .with_target(false)
+        .with_writer(
+            warn_out
+                .with_min_level(tracing::Level::WARN)
+                .with_max_level(tracing::Level::WARN),
+        );
+
+    let error_subscriber = fmt::Subscriber::default()
+        .pretty()
+        .with_file(true)
+        .with_line_number(true)
+        .with_target(false)
+        .with_writer(
+            error_out
+                .with_min_level(tracing::Level::ERROR)
+                .with_max_level(tracing::Level::ERROR),
+        );
+
+    let collector = Registry::default()
+        .with(info_subscriber)
+        .with(debug_subscriber)
+        .with(warning_subscriber)
+        .with(error_subscriber);
+
+    tracing::collect::set_global_default(collector).expect("Tracing must be ready for the App.");
+
+    tracing::span!(tracing::Level::INFO, "my_span")
+        .in_scope(|| tracing::event!(tracing::Level::INFO, "BEFORE READING ENV FILE"));
+
+    //
     let envs_map = get_env();
     let redis_url = get_connection_info(
         envs_map.get("redis_password").unwrap(),
@@ -93,6 +145,7 @@ fn rocket() -> _ {
         .merge(("secret_key", envs_map.get("secret_key").unwrap()));
 
     let rocket = rocket::custom(figment);
+    //  *********** BUILDING AND STARTING ROCKET ************
     rocket
         .attach(Template::fairing())
         .attach(Sessions::init())
