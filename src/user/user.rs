@@ -4,6 +4,7 @@ use rocket::request::{FromRequest, Outcome, Request};
 use rocket_db_pools::deadpool_redis::redis::{
     AsyncCommands, ErrorKind, FromRedisValue, RedisResult, Value,
 };
+
 /*
  * All users except admin. must have fields relevant to user.
  */

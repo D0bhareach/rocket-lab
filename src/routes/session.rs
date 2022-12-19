@@ -6,8 +6,12 @@ use rocket::request::FlashMessage;
 use rocket::response::{Flash, Redirect};
 use rocket_db_pools::deadpool_redis::redis::{AsyncCommands, RedisResult};
 use rocket_dyn_templates::{context, Template};
+// non of tracing macros is working in this module.
 use tracing_attributes::instrument;
 use uuid::Uuid;
+
+use tokio::fs::OpenOptions;
+use tokio::io::AsyncWriteExt;
 
 // TODO: Validation?
 #[derive(FromForm, Debug)]
@@ -21,14 +25,8 @@ macro_rules! session_uri {
     ($($t:tt)*) => (rocket::uri!("/session", $crate::routes::session:: $($t)*))
 }
 
+// not particularly good name for macro, because macro with this name is already in rocket.
 pub use session_uri as uri;
-
-/*
-#[get("/")]
-fn no_auth_index() -> Redirect {
-    Redirect::to(uri!(login_page))
-}
-*/
 
 #[get("/login")]
 fn login(_user: User) -> Redirect {
@@ -53,13 +51,24 @@ fn login_page(flash: Option<FlashMessage<'_>>) -> Template {
 }
 
 // this request  as many other can end in error state.
-#[instrument]
 #[post("/login", data = "<login>")]
 async fn post_login(
     jar: &CookieJar<'_>,
     pool: &Sessions,
     login: Form<Login<'_>>,
 ) -> Result<Flash<Redirect>, Status> {
+    // this will write to file, it works but too far off from proper logging.
+    let mut file = OpenOptions::new()
+        .read(true)
+        .append(true)
+        .create(true)
+        .open("./logs/info")
+        .await
+        .unwrap();
+    file.write_all(b"async function printing info while login.")
+        .await
+        .unwrap();
+
     if login.username == "Sergio" && login.password == "password" {
         let id = Uuid::new_v4().to_string();
         let mut redis = match pool.get().await {
@@ -70,7 +79,7 @@ async fn post_login(
             }
         };
 
-        // TODO: From / to vector of strings
+        // TODO: From / to vector of strings, it's  a bit ugly right now and not using type.
         let Ok(_unused) = redis
             .hset_multiple(
                 &id,

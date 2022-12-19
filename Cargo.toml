@@ -10,6 +10,7 @@ rocket = {version="0.5.0-rc.2", features = ["secrets"]}
 redis = "0.22.1"
 urlencoding = "2.1.2"
 dotenvy = "0.15.6"
+tokio = { version = "1", features = ["full"] }
 # tracing = { git = "https://github.com/tokio-rs/tracing.git", branch = "master" }
 tracing = { path = "../../tracing/tracing" }
 tracing-attributes = {path="../../tracing/tracing-attributes"}
