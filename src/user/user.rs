@@ -1,6 +1,5 @@
 use crate::Sessions;
 use rocket::http::Status;
-use rocket::outcome::try_outcome;
 use rocket::request::{FromRequest, Outcome, Request};
 use rocket_db_pools::deadpool_redis::redis::{
     AsyncCommands, ErrorKind, FromRedisValue, RedisResult, Value,
@@ -58,11 +57,10 @@ impl FromRedisValue for User {
                     )
                         .into())
                 } else {
-                    let user = User::from(val);
-                    return Ok(user);
+                    Ok(val.into())
                 }
             }
-            _ => return Err((ErrorKind::TypeError, "Redis value is not Bulk.").into()),
+            _ => Err((ErrorKind::TypeError, "Redis value is not Bulk.").into()),
         }
     }
 }
@@ -84,7 +82,7 @@ impl<'r> FromRequest<'r> for User {
 
         let mut redis = match pool.get().await {
             Ok(r) => r,
-            Err(e) => {
+            Err(_e) => {
                 return Outcome::Failure((Status::InternalServerError, ()));
             }
         };
@@ -96,8 +94,8 @@ impl<'r> FromRequest<'r> for User {
         let res: rocket_db_pools::deadpool_redis::redis::RedisResult<User> =
             redis.hgetall(s_id).await;
         match res {
-            Ok(arr) => Outcome::Success(User::from(arr)),
-            Err(e) => Outcome::Forward(()),
+            Ok(arr) => Outcome::Success(arr),
+            Err(_e) => Outcome::Forward(()),
         }
     }
 }

@@ -6,7 +6,6 @@ mod routes;
 mod user;
 use crate::database::redis::sessions::Sessions;
 use crate::user::user::User;
-use dotenvy;
 use rocket::fs::{relative, FileServer};
 use rocket::Config;
 use rocket_db_pools::figment::Figment;

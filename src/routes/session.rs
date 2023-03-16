@@ -62,7 +62,7 @@ async fn post_login(
         let id = Uuid::new_v4().to_string();
         let mut redis = match pool.get().await {
             Ok(r) => r,
-            Err(e) => return Err(Status::InternalServerError),
+            Err(_e) => return Err(Status::InternalServerError),
         };
 
         // TODO: From / to vector of strings
@@ -97,7 +97,7 @@ async fn logout(jar: &CookieJar<'_>, pool: &Sessions) -> Result<Flash<Redirect>,
     jar.remove_private(Cookie::named("session_id"));
     let mut redis = match pool.get().await {
         Ok(r) => r,
-        Err(e) => return Err(Status::InternalServerError),
+        Err(_e) => return Err(Status::InternalServerError),
     };
     let _: () = redis.expire(cookie.value(), 1).await.unwrap();
     Ok(Flash::success(
