@@ -4,3 +4,5 @@ pub mod one;
 pub mod session;
 pub mod three;
 pub mod two;
+
+// Routes are implemented only for session mod.

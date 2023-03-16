@@ -12,26 +12,18 @@ use rocket_db_pools::figment::Figment;
 use rocket_db_pools::Database;
 use rocket_dyn_templates::Template;
 use std::collections::HashMap;
-use tracing_appender::rolling;
-use tracing_subscriber::fmt::writer::MakeWriterExt;
 use urlencoding::encode;
 
-// pages: one, two, three, dashboard.
-// When logged must create session id.
-// Then save session id to redis db.
-// Simulate user loading from postgresql save name to session:id
-// Need user struct. This stuct will need to serialize to redis db.
-// Create other pages to simulate traveling to different urls with current session.
-// Probably make some parts of menu not accessable or some url not accessabe to some users.
-// Need to create user roles enum
-// Create starting script to start all common tasks that I will need.
-// Realize logout mechanism.
-// Realize cookies timeout mechanism.
-// Realize session timeout mechanism. Need update each time user interacts with server.
-// Need structs for context of each page. Need separate module for them.
-//
+use tracing_appender::{non_blocking, rolling};
+use tracing_subscriber::fmt::writer::MakeWriterExt;
+use tracing_subscriber::subscribe::CollectExt;
+use tracing_subscriber::{fmt, Registry};
+
 // TODO: Use simple unwrap code for now. Services required to be wired before server is
 // started. Change error handling to logging error and panic!
+
+// encode will escape all characters that have special meaning to url string.
+// without encoding connection is not established and error is thrown.
 fn get_connection_info(redis_password: &str, redis_host: &str, redis_port: &str) -> String {
     format!(
         "redis://:{}@{}:{}/",
@@ -42,7 +34,10 @@ fn get_connection_info(redis_password: &str, redis_host: &str, redis_port: &str)
 }
 
 // get corresponding  key / values from .env file
+// dotenv_iter not saving entries from .env file to environmental variables.
+// It's save to use for secret values.
 fn get_env() -> HashMap<String, String> {
+    tracing::info!("Info from get_env method.");
     let mut map = HashMap::with_capacity(2);
     for item in dotenvy::dotenv_iter().unwrap() {
         let (key, val) = item.unwrap();
@@ -53,26 +48,72 @@ fn get_env() -> HashMap<String, String> {
 
 #[launch]
 fn rocket() -> _ {
-    // init tracing
-    let info_file = rolling::minutely("./logs", "info");
-    let warn_file = rolling::daily("./logs", "warnings").with_max_level(tracing::Level::WARN);
-    let all_files = info_file.and(warn_file);
+    // ******** SETTING TRACING ***********
+    // TODO: path to file better be passed from config.
+    // Instead of rolling will need to use rolling-file-rs, or my own implementation
 
-    tracing_subscriber::fmt()
-        .with_writer(all_files)
-        .with_ansi(false)
-        .with_max_level(tracing::Level::INFO)
-        .init();
+    let info_file = rolling::daily("./logs", "info");
+    let (info_out, _handle) = non_blocking(info_file);
 
-    tracing::info!("Before reading env file");
+    let debug_file = rolling::daily("./logs", "info");
+    let (debug_out, _handle) = non_blocking(debug_file);
 
+    let warn_file = rolling::daily("./logs", "warning");
+    let (warn_out, _handle) = non_blocking(warn_file);
+
+    let error_file = rolling::daily("./logs", "error");
+    let (error_out, _handle) = non_blocking(error_file);
+
+    let info_subscriber = fmt::Subscriber::default().with_writer(
+        info_out
+            .with_min_level(tracing::Level::INFO)
+            .with_max_level(tracing::Level::INFO),
+    );
+
+    let debug_subscriber = fmt::Subscriber::default().pretty().with_writer(
+        debug_out
+            .with_min_level(tracing::Level::DEBUG)
+            .with_max_level(tracing::Level::DEBUG),
+    );
+    let warning_subscriber = fmt::Subscriber::default()
+        .pretty()
+        .with_file(true)
+        .with_line_number(true)
+        .with_target(false)
+        .with_writer(
+            warn_out
+                .with_min_level(tracing::Level::WARN)
+                .with_max_level(tracing::Level::WARN),
+        );
+
+    let error_subscriber = fmt::Subscriber::default()
+        .pretty()
+        .with_file(true)
+        .with_line_number(true)
+        .with_target(false)
+        .with_writer(
+            error_out
+                .with_min_level(tracing::Level::ERROR)
+                .with_max_level(tracing::Level::ERROR),
+        );
+
+    let collector = Registry::default()
+        .with(info_subscriber)
+        .with(debug_subscriber)
+        .with(warning_subscriber)
+        .with(error_subscriber);
+
+    // TODO: Logging with tracing is not working.
+    // set global collect, but it's still not working in any of modules.!!
+    tracing::collect::set_global_default(collector).expect("Tracing must be ready for the App.");
+
+    //
     let envs_map = get_env();
     let redis_url = get_connection_info(
         envs_map.get("redis_password").unwrap(),
         envs_map.get("redis_host").unwrap(),
         envs_map.get("redis_port").unwrap(),
     );
-    tracing::info!("After reading .env file. Port: {}", envs_map["redis_port"]);
 
     // read configs form Rocket.toml
     let config = Config::figment();
@@ -92,6 +133,7 @@ fn rocket() -> _ {
         .merge(("secret_key", envs_map.get("secret_key").unwrap()));
 
     let rocket = rocket::custom(figment);
+    //  *********** BUILDING AND STARTING ROCKET ************
     rocket
         .attach(Template::fairing())
         .attach(Sessions::init())
